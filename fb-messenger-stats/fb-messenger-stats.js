@@ -10,7 +10,7 @@ if (process.argv[2]) {
 const raw = fs.readFileSync(path, "utf8");
 const data = JSON.parse(raw);
 
-const wordDerivations = ["put", "your", "own", "words", "here"];
+const wordDerivations = ["trot", "teutt", "fuck", "slug", "scruff", "harro", "homm", "niff", "fkn", "coff", "beer", "retard", "pub", "errand", "nips", "cunt", "albo", "lgbt", "sex", "yh", "anal", "brightside", "fangirl", "duke", "bev"];
 
 const chatName = data.title;
 const resultsFile = chatName.toLowerCase() + "-results.txt";
@@ -24,9 +24,8 @@ const selfNicknameChangeRegex = /^You set your nickname to (.+)\.$/;
 const totalMessages = data.messages.length;
 const latestMessageDate = new Date(data.messages[0].timestamp_ms).toLocaleDateString();
 const oldestMessageDate = new Date(data.messages[totalMessages - 1].timestamp_ms).toLocaleDateString();
-const wordMaxConsolePrint = 10;
-const maxFileAndConsoleOutput = 100;
-const maxIndividualFaveMessageOutput = 15;
+const maxResultsPrintCount = 100;
+const maxIndividualMessageReactionPrintCount = 15;
 
 let totalReactions = 0;
 let resultsOutput = "";
@@ -208,7 +207,7 @@ function saveAndPrintSimpleMap(map) {
     let out = "\n";
 
     // File
-    entries.slice(0, maxFileAndConsoleOutput).forEach(([key, value]) => {
+    entries.slice(0, maxResultsPrintCount).forEach(([key, value]) => {
         if (value === undefined) return;
         out += ` - ${key}: ${value}\n`;
     });
@@ -227,11 +226,10 @@ function saveAndPrintIndividualsFavouriteWords() {
         const sorted = Array.from(wordMap.entries())
             .sort((a, b) => b[1] - a[1]); // sort by count desc
 
-        for (let i = 0; i < wordMaxConsolePrint; i++) {
+        for (let i = 0; i < maxResultsPrintCount; i++) {
             if (sorted[i]) {
                 const [word, count] = sorted[i];
                 out += ` - ${word}: ${count}\n`;
-                
             }
         }
     });
@@ -269,7 +267,7 @@ function saveAndPrintMessageReactions() {
     grouped.forEach((list, sender) => {
         out += `\n${sender}\n`;
 
-        list.slice(0, maxIndividualFaveMessageOutput).forEach(data => {
+        list.slice(0, maxIndividualMessageReactionPrintCount).forEach(data => {
             if (data.reactions > 1) {
                 out += `- ${data.reactions} reactions - ${data.message}\n`;
             }
@@ -351,13 +349,13 @@ function results() {
     saveAndPrintSimpleMap(reactionCountMap);
 
     saveAndPrintResults(printSectionBreak(`Words`));
-    saveAndPrintResults(`Favourite Words (top ${maxFileAndConsoleOutput} only)`);
+    saveAndPrintResults(`Favourite Words (top ${maxResultsPrintCount} only)`);
     saveAndPrintSimpleMap(wordsMap);
 
     saveAndPrintResults(`Word Derivations`);
     saveAndPrintWordDerivations(wordDerivationsMap)
 
-    saveAndPrintResults(`Individual's Favourite Words`);
+    saveAndPrintResults(`Individual's Favourite Words (top ${maxResultsPrintCount} only)`);
     saveAndPrintIndividualsFavouriteWords();
 
     saveAndPrintResults(printSectionBreak(`Reactions`));
@@ -368,7 +366,7 @@ function results() {
     saveAndPrintResults(`Top Individual Message Reaction Count`);
     saveAndPrintSimpleMap(highestIndividualReactionsMap);
 
-    saveAndPrintResults(`Individual's Favourite Message Reactions`);
+    saveAndPrintResults(`Individual's Favourite Message Reactions (top ${maxIndividualMessageReactionPrintCount}) only`);
     saveAndPrintMessageReactions();
 
     saveAndPrintResults(printSectionBreak(`Images and Links`));
