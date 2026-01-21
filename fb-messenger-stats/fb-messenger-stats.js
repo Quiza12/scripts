@@ -1,7 +1,7 @@
-const fs = require("fs"); 
+const fs = require("fs");
 const { removeStopwords, eng } = require('stopword');
 
-let path = "qc-messages-2025.json"; // Path to your Facebook message JSON file 
+let path = "YOUR_FILE.json"; // Path to your Facebook message JSON file 
 
 if (process.argv[2]) {
     path = process.argv[2]; // Override path if parsed in as an argument
@@ -10,13 +10,14 @@ if (process.argv[2]) {
 const raw = fs.readFileSync(path, "utf8");
 const data = JSON.parse(raw);
 
-const wordDerivations = ["trot", "teutt", "fuck", "slug", "scruff", "harro", "homm", "niff", "fkn", "coff", "beer", "retard", "pub", "errand", "nips", "cunt", "albo", "lgbt", "sex", "yh", "anal", "brightside", "fangirl", "duke", "bev"];
+const wordDerivations = ["put", "your", "own", "words", "here"];
+const keyWords = ["yo", "bro"];
 
 const chatName = data.title;
 const resultsFile = chatName.toLowerCase() + "-results.txt";
 
 const messageReactionRegex = /^.+\sreacted\s.+\sto\syour\smessage/g;
-const punctuationExcludeRegex = /[._?!@,’"“”*¿():'\-\n\r…²³⁴⁵\#\&]/g;
+const punctuationExcludeRegex = /[._?!@,’"“”*¿():'\-\n\r…²³⁴⁵\#\&\|\|]/g;
 const linkExcludeRegex = /https.+/g;
 const otherNicknameChangeRegex = /^(.+?) set the nickname for (.+?) to (.+)\.$/;
 const selfNicknameChangeRegex = /^You set your nickname to (.+)\.$/;
@@ -33,6 +34,7 @@ let messageCountMap = new Map();
 let reactionCountMap = new Map();
 let wordsMap = new Map();
 let individualWordsMap = new Map();
+let mostKeyWordMentionsMap = new Map();
 let reactionsMap = new Map();
 let individualReactionsMap = new Map();
 let highestIndividualReactionsMap = new Map();
@@ -58,6 +60,7 @@ function loopMessages() {
     data.messages.forEach(msg => {
         getGeneralStats(msg);
         getWordStats(msg);
+        getMostKeyWordMentions(msg);
         getReactionStats(msg);
         getSharedImageStats(msg);
         getSharedLinkStats(msg);
@@ -110,6 +113,26 @@ function getWordStats(msg) {
                 }
             }
         });
+    }
+}
+
+function getMostKeyWordMentions(msg) {
+    if (msg && msg.content && !msg.content.match(messageReactionRegex) && !msg.content.match(linkExcludeRegex)) {
+
+        let cleanMessage = decodeFacebookString(msg.content).toLowerCase().replace(punctuationExcludeRegex, ""); // decode and lowercase, replace all punctuation
+
+        keyWords.forEach(mm => {
+            if (cleanMessage.includes(mm)) {
+                let key = msg.sender_name + ": " + mm;
+                if (mostKeyWordMentionsMap.get(key)) {
+                    mostKeyWordMentionsMap.get(key).count += 1;
+                } else {
+                    mostKeyWordMentionsMap.set(key, { word: mm, count: 1 });
+                }
+            }
+        });
+
+
     }
 }
 
@@ -169,11 +192,12 @@ function getSharedLinkStats(msg) {
 function getNicknameChanges(msg) {
 
     if (msg && msg.content) {
-        const otherMatch = msg.content.match(otherNicknameChangeRegex);
-        const selfMatch = msg.content.match(selfNicknameChangeRegex);
+        let cleanMessage = decodeFacebookString(msg.content);
+        const otherMatch = cleanMessage.match(otherNicknameChangeRegex);
+        const selfMatch = cleanMessage.match(selfNicknameChangeRegex);
         const messageDate = new Date(msg.timestamp_ms).toISOString();
         if (otherMatch) {
-            nicknamesMap.set(messageDate, { modifier: msg.sender_name, target: otherMatch[2], nickname: otherMatch[3], simpleDate: new Date(msg.timestamp_ms).toLocaleDateString()});
+            nicknamesMap.set(messageDate, { modifier: msg.sender_name, target: otherMatch[2], nickname: otherMatch[3], simpleDate: new Date(msg.timestamp_ms).toLocaleDateString() });
         } else if (selfMatch) {
             nicknamesMap.set(messageDate, { modifier: msg.sender_name, target: msg.sender_name, nickname: selfMatch[1], simpleDate: new Date(msg.timestamp_ms).toLocaleDateString() });
         }
@@ -219,7 +243,7 @@ function saveAndPrintSimpleMap(map) {
 
 function saveAndPrintIndividualsFavouriteWords() {
     let out = "";
-    
+
     individualWordsMap.forEach((wordMap, sender) => {
         out += `\n${sender}\n`;
         // Convert inner map to array so we can sort
@@ -286,7 +310,7 @@ function saveAndPrintWordDerivations(map) {
         const line = ` - ${key} - Total count: ${value.count} - Derivations: ${wdsJoined}\n`;
         out += line;
     });
-    
+
     // Write to console/file
     saveAndPrintResults(out);
 }
@@ -308,7 +332,38 @@ function saveAndPrintNicknameChanges(map) {
         if (value === undefined) continue;
         out += `- ${value.simpleDate} - ${value.modifier} to ${value.target} - New Nickname: ${value.nickname}\n`;
     }
-    
+
+    // Write to console/file
+    saveAndPrintResults(out);
+}
+
+function saveAndMostWordMentions(map) {
+    // Build output
+    let out = "";
+
+    // Step 1: Group by the "word" field
+    const groups = {};
+
+    for (const [key, value] of map.entries()) {
+        const group = value.word;
+        if (!groups[group]) groups[group] = [];
+        groups[group].push({ key, count: value.count });
+    }
+
+    // Step 2: Sort each group by count DESC
+    for (const group of Object.keys(groups)) {
+        groups[group].sort((a, b) => b.count - a.count);
+    }
+
+    // Step 3: Print nicely
+    for (const group of Object.keys(groups)) {
+        out += `\n=== ${group} ===\n\n`;
+        for (const item of groups[group]) {
+            out += `${item.key}: ${item.count}\n`;
+        }
+
+    }
+
     // Write to console/file
     saveAndPrintResults(out);
 }
@@ -332,7 +387,7 @@ function printSectionBreak(sectionName) {
 }
 
 function results() {
-    
+
     saveAndPrintResults(`============================================================\n`);
     saveAndPrintResults(`${chatName} Message Stats`);
     saveAndPrintResults(`${oldestMessageDate} to ${latestMessageDate}`);
@@ -349,11 +404,14 @@ function results() {
     saveAndPrintSimpleMap(reactionCountMap);
 
     saveAndPrintResults(printSectionBreak(`Words`));
-    saveAndPrintResults(`Favourite Words (top ${maxResultsPrintCount} only)`);
+    saveAndPrintResults(`Favourite Words of entire chat (top ${maxResultsPrintCount} only)`);
     saveAndPrintSimpleMap(wordsMap);
 
-    saveAndPrintResults(`Word Derivations`);
+    saveAndPrintResults(`Word Derivations (i.e. to -> to, total, toe) - (` + wordDerivations.join(", ") + `)`);
     saveAndPrintWordDerivations(wordDerivationsMap)
+
+    saveAndPrintResults(`Most Key Word Mentions - (` + keyWords.join(", ") + `)`);
+    saveAndMostWordMentions(mostKeyWordMentionsMap);
 
     saveAndPrintResults(`Individual's Favourite Words (top ${maxResultsPrintCount} only)`);
     saveAndPrintIndividualsFavouriteWords();
